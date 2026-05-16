@@ -6,10 +6,10 @@
 
 ## 快速使用
 
-如果脚本已经上传到你的 GitHub 仓库，可以使用类似下面的一键命令运行。实际地址需要替换为你的仓库 raw 地址。
+在服务器上执行下面的一键命令即可进入安装菜单：
 
 ```bash
-curl -fsSL https://github.com/你的用户名/new-api-onekey/raw/refs/heads/main/install.sh | sudo bash
+curl -fsSL https://github.com/benmao5201314/new-api-onekey/raw/refs/heads/main/install.sh | sudo bash
 ```
 
 如果你已经下载了脚本，也可以在服务器本地执行：
