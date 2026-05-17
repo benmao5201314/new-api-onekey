@@ -16,6 +16,41 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# 当脚本通过 `curl | bash` 管道执行时，标准输入会被脚本内容占用；
+# 交互式菜单必须优先从 /dev/tty 读取，才能正常接收用户输入。
+NEW_API_INPUT_FD=0
+NEW_API_INPUT_FROM_TTY=0
+if [[ ! -t 0 ]]; then
+  if { exec 3</dev/tty; } 2>/dev/null; then
+    NEW_API_INPUT_FD=3
+    NEW_API_INPUT_FROM_TTY=1
+  fi
+fi
+
+read_input() {
+  local __var="$1"
+  local __prompt="$2"
+  local __value=""
+  if IFS= read -r -p "$__prompt" __value <&"${NEW_API_INPUT_FD}"; then
+    printf -v "$__var" '%s' "$__value"
+    return 0
+  fi
+  printf -v "$__var" '%s' ""
+  return 1
+}
+
+read_secret() {
+  local __var="$1"
+  local __prompt="$2"
+  local __value=""
+  if IFS= read -r -s -p "$__prompt" __value <&"${NEW_API_INPUT_FD}"; then
+    printf -v "$__var" '%s' "$__value"
+    return 0
+  fi
+  printf -v "$__var" '%s' ""
+  return 1
+}
+
 log_info() { echo -e "${BLUE}[信息]${NC} $*"; }
 log_ok() { echo -e "${GREEN}[成功]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[提示]${NC} $*"; }
@@ -30,7 +65,7 @@ require_root() {
 
 pause_return() {
   echo
-  read -r -p "按回车返回主菜单..." _ || true
+  read_input _ "按回车返回主菜单..." || true
 }
 
 random_string() {
@@ -54,17 +89,17 @@ choose_admin_password() {
   echo "请选择管理员密码设置方式："
   echo "  1) 随机生成（推荐，默认）"
   echo "  2) 自定义输入"
-  read -r -p "请选择 [1-2，默认 1]: " choice || true
+  read_input choice "请选择 [1-2，默认 1]: " || true
   case "${choice:-1}" in
     2)
       while true; do
-        read -r -s -p "请输入管理员密码（至少 8 位，仅支持字母、数字和 @._%+=:-）: " password || true
+        read_secret password "请输入管理员密码（至少 8 位，仅支持字母、数字和 @._%+=:-）: " || true
         echo
         if ! valid_password "${password}"; then
           log_warn "密码长度或字符不符合要求，请重新输入。"
           continue
         fi
-        read -r -s -p "请再次输入管理员密码: " password2 || true
+        read_secret password2 "请再次输入管理员密码: " || true
         echo
         if [[ "${password}" != "${password2}" ]]; then
           log_warn "两次输入不一致，请重新输入。"
@@ -175,7 +210,7 @@ choose_port() {
   if port_in_use "${APP_PORT}"; then
     log_warn "端口 ${APP_PORT} 已被占用，需要设置一个可用端口。"
     while true; do
-      read -r -p "请输入 new-api 对外端口（例如 3001）: " APP_PORT || true
+      read_input APP_PORT "请输入 new-api 对外端口（例如 3001）: " || true
       if [[ "${APP_PORT}" =~ ^[0-9]+$ ]] && (( APP_PORT >= 1 && APP_PORT <= 65535 )) && ! port_in_use "${APP_PORT}"; then
         break
       fi
@@ -482,7 +517,11 @@ main() {
   require_root
   while true; do
     show_menu
-    read -r -p "请选择操作 [0-5]: " choice || true
+    if ! read_input choice "请选择操作 [0-5]: "; then
+      echo
+      log_err "未检测到可用的交互式输入终端，请在 SSH 终端中运行该命令，或先下载脚本后执行 sudo bash install.sh。"
+      exit 1
+    fi
     case "${choice}" in
       1) install_new_api; pause_return ;;
       2) update_new_api; pause_return ;;
@@ -495,6 +534,8 @@ main() {
   done
 }
 
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+# 在 `curl | bash` 等管道执行场景下，部分环境可能无法提供 BASH_SOURCE[0]。
+# 使用带默认值的参数展开可避免 `set -u` 触发 unbound variable，同时保留被 source 时不自动执行的行为。
+if [[ "${BASH_SOURCE[0]-}" == "$0" || -z "${BASH_SOURCE[0]-}" ]]; then
   main "$@"
 fi
