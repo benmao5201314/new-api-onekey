@@ -13,7 +13,7 @@ warn(){ echo -e "${YELLOW}[提示]${NC} $*"; }
 die(){ echo -e "${RED}[错误]${NC} $*" >&2; exit 1; }
 
 require_root(){ [[ $EUID -eq 0 ]] || die "请使用 root 用户运行：sudo bash $0"; }
-read_tty(){ local __v=$1 __p=$2 x; read -r -p "$__p" x < /dev/tty || true; printf -v "$__v" '%s' "$x"; }
+read_tty(){ local __v=$1 __p=$2 x=""; read -r -p "$__p" x < /dev/tty || true; printf -v "$__v" '%s' "$x"; }
 confirm(){ local x; read_tty x "$1 [y/N]: "; [[ "$x" =~ ^([Yy][Ee][Ss]|[Yy])$ ]]; }
 valid_domain(){ [[ "$1" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$ ]]; }
 valid_email(){ [[ "$1" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; }
@@ -77,7 +77,7 @@ collect_proxy_inputs(){
 run_upstream(){
   local tmp
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
+  # 不设置引用局部变量 tmp 的 EXIT trap，避免函数返回后 set -u 报 tmp 未定义。
   log "下载并运行上游原始安装脚本（不会修改上游文件）。"
   curl -fsSL "$UPSTREAM_URL" -o "$tmp/install.sh" || die "无法下载上游安装脚本。"
   chmod 700 "$tmp/install.sh"
@@ -85,7 +85,7 @@ run_upstream(){
 #!/usr/bin/env bash
 set -Eeuo pipefail
 INSTALL_DIR="/opt/new-api"; COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"; ENV_FILE="$INSTALL_DIR/.env"
-read_tty(){ local v=$1 p=$2 x; read -r -p "$p" x < /dev/tty || true; printf -v "$v" '%s' "$x"; }
+  read_tty(){ local v=$1 p=$2 x=""; read -r -p "$p" x < /dev/tty || true; printf -v "$v" '%s' "$x"; }
 valid_domain(){ [[ "$1" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$ ]]; }
 valid_email(){ [[ "$1" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; }
 get_port(){ APP_PORT=3000; [[ -f "$ENV_FILE" ]] && APP_PORT="$(sed -n 's/^WEB_PORT=//p' "$ENV_FILE" | tail -1)"; [[ "$APP_PORT" =~ ^[0-9]+$ ]] || APP_PORT=3000; }
