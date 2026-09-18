@@ -69,8 +69,8 @@ run_upstream(){
   echo
   echo "接下来会进入上游脚本菜单，请选择："
   echo "  1) 安装 new-api"
-  echo "安装完成并返回菜单后，再选择："
-  echo "  0) 退出上游菜单"
+  echo "安装完成后，按回车返回上游菜单，再选择："
+  echo "  0) 退出上游菜单，返回本增强脚本继续配置反代和证书"
   echo
   bash "$tmp/install.sh"
   [[ -f "$COMPOSE_FILE" ]] || die "未找到 ${COMPOSE_FILE}，请确认已在上游菜单选择安装。"
@@ -165,7 +165,26 @@ restrict_port(){
 
 main(){
   require_root
-  [[ -f "$COMPOSE_FILE" ]] && die "检测到已有 ${COMPOSE_FILE}，为避免覆盖现有数据，本脚本不会重复安装。"
+  if [[ -f "$COMPOSE_FILE" ]]; then
+    warn "检测到已有 New API：${COMPOSE_FILE}"
+    if ! confirm "是否跳过安装，直接继续配置反代和 HTTPS"; then
+      die "已取消，未修改现有 New API。"
+    fi
+    get_port
+    compose_up
+    wait_api
+    echo
+    ok "已跳过 New API 安装，现在开始配置域名反向代理。"
+    collect_proxy_inputs
+    configure_nginx
+    if confirm "是否将 Docker 的 ${APP_PORT} 端口限制为仅本机访问"; then restrict_port; fi
+    configure_https
+    echo
+    ok "反代和 HTTPS 配置完成。"
+    [[ "$HTTPS" == yes ]] && echo "管理页面：https://${DOMAIN}/" || echo "管理页面：http://${DOMAIN}/"
+    [[ "$HTTPS" == yes ]] && echo "API Base URL：https://${DOMAIN}/v1" || echo "API Base URL：http://${DOMAIN}/v1"
+    exit 0
+  fi
   install -d -m 700 "$INSTALL_DIR"
   if ! command -v docker >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
