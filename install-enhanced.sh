@@ -169,7 +169,11 @@ main(){
   install -d -m 700 "$INSTALL_DIR"
   if ! command -v docker >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
-    if command -v apt-get >/dev/null 2>&1; then apt-get update -y && apt-get install -y docker.io docker-compose-plugin curl ca-certificates openssl
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get update -y
+      # Ubuntu 22.04 的默认仓库通常没有 docker-compose-plugin，优先使用独立版 compose。
+      apt-get install -y docker.io docker-compose curl ca-certificates openssl || \
+        apt-get install -y docker.io docker-compose-plugin curl ca-certificates openssl
     elif command -v dnf >/dev/null 2>&1; then dnf install -y docker curl ca-certificates openssl
     elif command -v yum >/dev/null 2>&1; then yum install -y docker curl ca-certificates openssl
     else die "无法自动安装 Docker。"; fi
