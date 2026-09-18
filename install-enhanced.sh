@@ -17,6 +17,21 @@ read_tty(){ local __v=$1 __p=$2 x; read -r -p "$__p" x < /dev/tty || true; print
 confirm(){ local x; read_tty x "$1 [y/N]: "; [[ "$x" =~ ^([Yy][Ee][Ss]|[Yy])$ ]]; }
 valid_domain(){ [[ "$1" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$ ]]; }
 valid_email(){ [[ "$1" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; }
+wait_apt_lock(){
+  command -v apt-get >/dev/null 2>&1 || return 0
+  local lock="/var/lib/dpkg/lock-frontend" i=0
+  while fuser "$lock" >/dev/null 2>&1; do
+    ((i+=1))
+    if (( i == 1 )); then
+      warn "APT 正被系统自动更新占用，等待锁释放（最多 5 分钟），不要强制删除锁文件。"
+    fi
+    if (( i >= 60 )); then
+      die "APT 锁等待超时。请稍后执行：ps aux | grep -E 'apt|dpkg|unattended'，确认没有安装任务后再重试。"
+    fi
+    sleep 5
+  done
+  dpkg --configure -a >/dev/null 2>&1 || true
+}
 
 configure_docker_mirrors(){
   log "配置 Docker 国内镜像源。"
@@ -72,6 +87,7 @@ run_upstream(){
   echo "安装完成后，按回车返回上游菜单，再选择："
   echo "  0) 退出上游菜单，返回本增强脚本继续配置反代和证书"
   echo
+  wait_apt_lock
   bash "$tmp/install.sh"
   [[ -f "$COMPOSE_FILE" ]] || die "未找到 ${COMPOSE_FILE}，请确认已在上游菜单选择安装。"
 }
@@ -189,6 +205,7 @@ main(){
   if ! command -v docker >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
     if command -v apt-get >/dev/null 2>&1; then
+      wait_apt_lock
       apt-get update -y
       # Ubuntu 22.04 的默认仓库通常没有 docker-compose-plugin，优先使用独立版 compose。
       apt-get install -y docker.io docker-compose curl ca-certificates openssl || \
