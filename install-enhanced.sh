@@ -14,7 +14,7 @@ die(){ echo -e "${RED}[错误]${NC} $*" >&2; exit 1; }
 
 require_root(){ [[ $EUID -eq 0 ]] || die "请使用 root 用户运行：sudo bash $0"; }
 read_tty(){ local __v=$1 __p=$2 x=""; read -r -p "$__p" x < /dev/tty || true; printf -v "$__v" '%s' "$x"; }
-confirm(){ local x; read_tty x "$1 [y/N]: "; [[ "$x" =~ ^([Yy][Ee][Ss]|[Yy])$ ]]; }
+confirm(){ local x=""; read_tty x "$1 [y/N]: "; [[ "${x:-}" =~ ^([Yy][Ee][Ss]|[Yy])$ ]]; }
 valid_domain(){ [[ "$1" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$ ]]; }
 valid_email(){ [[ "$1" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; }
 wait_apt_lock(){
